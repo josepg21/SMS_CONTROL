@@ -124,15 +124,20 @@ TABLA RESUMEN POR ESTADO (render_dashboard, app.py ~línea 697):
   - Números formateados con separadores de miles (f'{:,}').
   - Se auto-refresca cada 10 segundos igual que el resto del dashboard.
 
-MODULO (render_modulo, app.py ~línea 674):
+MODULO (render_modulo, app.py ~línea 761):
   - Parámetro 'costura' o 'acabados'. Estado destino = EN COSTURA o EN ACABADOS.
+  - SELECCIONA EL PROYECTO/HOJA EN LA QUE TRABAJAR (selectbox 'Proyecto'
+      con key f'mod_hoja_{modo}'), independiente para cada módulo.
+      Las prendas listadas y el guardado usan esa hoja.
   - Buscador por código o color (key f'buscar_{modo}').
   - Filtro por estado actual (key f'estado_filtro_{modo}').
   - Lista de todos los códigos con sus colores como checkboxes
       (key f'mod_{modo}_{style} — {color}').
   - Botón 'Guardar selección' type='primary' (key f'guardar_{modo}').
-      Actualiza db.actualizar_seguimiento(style,color,status=estado_destino) por cada marcada.
+      Actualiza db.actualizar_seguimiento(hoja, style, color, status=estado_destino)
+      por cada marcada.
   - Vista previa de selección en un expander.
+  - Si la hoja elegida no tiene datos, muestra aviso en vez de fallar.
 
 --------------------------------------------------------------------------------
 8. CSS / DISEÑO (inyectar_css)
@@ -188,6 +193,15 @@ RESPONSIVE (media queries al final del CSS):
                         tabs con scroll, checkboxes táctiles, sidebar 280px.
   <768px (MÓVIL)  -> todo a ancho completo, sidebar 260px.
   Clave: .block-container [data-testid="column"] { min-width:0; word-break:break-word }
+
+SELECTBOX EN TÁCTIL (evitar teclado automático en tablets/móviles):
+  - Problema: el st.selectbox renderiza un input editable que, en pantallas
+    táctiles (< 992px), abre el teclado al tocarlo (incómodo).
+  - Fix (media queries tablet y móvil): al input interno de los selectbox
+    ([data-baseweb="select"] input, [data-testid="stSelectbox"] input) se le
+    aplica pointer-events:none + user-select:none + caret-color:transparent.
+  - El contenedor conserva cursor:pointer y el clic sigue abriendo el dropdown
+    normalmente. En escritorio sigue todo editable.
 
 --------------------------------------------------------------------------------
 9. CAPA DE DATOS (datos.py)
@@ -287,8 +301,8 @@ FUNCIONAMIENTO ACTUAL:
   - Selector 'Proyecto': aparece en el Dashboard, Seguimiento, Exportar y en el
     modo solo lectura. Sincronizan st.session_state.hoja_actual.
   - Cada pestaña filtra por la hoja seleccionada (db.obtener_todos(hoja=...)).
-  - Costura/Acabados operan sobre la hoja activa; al guardar pasan la hoja a
-    db.actualizar_seguimiento(hoja, ...).
+  - Costura/Acabados tienen su PROPIO selector de proyecto (independiente c/módulo)
+    y al guardar pasan la hoja elegida a db.actualizar_seguimiento(hoja, ...).
   - Re-importar una hoja borra SOLO esa hoja, preserva las demás.
   - Modo solo lectura (?solo=1): selectbox de proyecto + dashboard. Soporta
     ?solo=1&hoja=NOMBRE.
