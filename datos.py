@@ -95,6 +95,13 @@ def _detect_layout(ws, header_row):
             idx.setdefault('ingreso', i)
         elif h in ('observaciones', 'obs', 'observacion'):
             idx['obs'] = i
+        # ===== Formato WINTER (canales de venta, sin tallas) =====
+        elif h in ('style name', 'nombre'):
+            idx.setdefault('name', i)
+        elif h in ('tot ped',):
+            idx['tot_ped'] = i
+        elif h in ('tot prg',):
+            idx['tot_prog'] = i
     return idx
 
 
@@ -113,6 +120,14 @@ def extractar_hoja(file_path, sheet_name):
         raise ValueError(f'No se encontraron encabezados (Style/PO) en la hoja "{sheet_name}".')
 
     idx = _detect_layout(ws, header_row)
+
+    # Detectar formato WINTER (canales de venta, sin bloques de tallas).
+    # Se reconoce por la presencia de 'Tot Ped' / 'Tot Prg' y ausencia de
+    # bloques PEDIDO/PROGRAMADO completos.
+    es_winter = ('tot_ped' in idx and 'tot_prog' in idx
+                 and 'style' in idx and 'color' in idx)
+    if es_winter:
+        return _extraer_winter(ws, header_row, idx)
 
     # localizar bloques de tallas: buscamos en la fila inmediatamente anterior
     # (o la misma) la palabra PEDIDO / PROGRAMADO
@@ -202,3 +217,67 @@ def _normalizar_estado(st):
 def obtener_hojas(file_path):
     wb = openpyxl.load_workbook(file_path, read_only=True)
     return wb.sheetnames
+
+
+def _extraer_winter(ws, header_row, idx):
+    """Extrae filas de una hoja en formato WINTER (canales de venta, sin tallas).
+
+    Los campos numéricos (canales de venta) no son tallas. Para mantener la
+    compatibilidad con el resto de la app (db.py, reporte.py, app.py), las
+    listas pedido[]/prog[] se llenan con ceros (14 posiciones) y los totales reales
+    se guardan en pedido_total / prog_total.
+
+    Devuelve una lista de dicts con la misma estructura que el resto de hojas.
+    Cada variante corresponde a Style + Color + Destino.
+    """
+    # Localizar columnas de destino: entre la columna 'color' y 'tot_ped' (exclusive)
+    col_idx = idx.get('color')
+    col_totped = idx.get('tot_ped')
+    destinos = []
+    if col_idx is not None and col_totped is not None:
+        for c in range(col_idx + 1, col_totped):
+            cab = _norm_text(ws.cell(row=header_row, column=c + 1).value)
+            if cab:
+                destinos.append((c, cab))
+    col_prg = idx.get('tot_prog')
+
+    filas = []
+    for r in range(header_row + 1, ws.max_row + 1):
+        style = _norm_text(ws.cell(row=r, column=idx['style'] + 1).value)
+        if not style:
+            continue
+        color_base = _norm_text(ws.cell(row=r, column=idx['color'] + 1).value if idx.get('color') else None)
+        row_tot_ped = _to_num(ws.cell(row=r, column=col_totped + 1).value) if col_totped is not None else 0
+        row_tot_prg = _to_num(ws.cell(row=r, column=col_prg + 1).value) if col_prg is not None else 0
+        status = _normalizar_estado(
+            _norm_text(ws.cell(row=r, column=idx['status'] + 1).value if idx.get('status') else None)
+            or '(sin estado)')
+        po_base = _norm_text(idx.get('po') is not None and ws.cell(row=r, column=idx['po'] + 1).value)
+        name_base = _norm_text(ws.cell(row=r, column=idx['name'] + 1).value if idx.get('name') else None)
+        tela_base = _norm_text(ws.cell(row=r, column=idx['tela'] + 1).value if idx.get('tela') else None)
+
+        # Una variante por cada destino con cantidad > 0
+        for (ecol, dname) in destinos:
+            cant = _to_num(ws.cell(row=r, column=ecol + 1).value)
+            if cant <= 0:
+                continue
+            # Repartir el programado proporcional al pedido del destino
+            prog = 0
+            if row_tot_ped:
+                prog = round(row_tot_prg * cant / row_tot_ped)
+            fila = {
+                'style': style,
+                'po': po_base,
+                'name': name_base,
+                'tela': tela_base,
+                'color': f'{color_base} — {dname}',
+                'pedido': [0] * len(TALLAS),
+                'prog': [0] * len(TALLAS),
+                'pedido_total': cant,
+                'prog_total': prog,
+                'status': status,
+                'ingreso': '',
+                'obs': _norm_text(ws.cell(row=r, column=idx['obs'] + 1).value if idx.get('obs') else None),
+            }
+            filas.append(fila)
+    return filas

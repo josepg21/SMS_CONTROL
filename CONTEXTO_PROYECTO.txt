@@ -37,7 +37,7 @@ db.py                  -> Capa de persistencia SQLite.
 reporte.py             -> Exportación Excel/PDF (usado por la app).
 generar_reporte.py     -> Script standalone que genera REPORTE SMS-SUMMER27.xlsx.
 generar_pdf.py         -> Script standalone que genera REPORTE SMS-SUMMER27.pdf.
-MISHA SMS 1 SE.xlsx    -> Archivo Excel fuente. Hoja usada: STATUS SMS-SUMMER27.
+MISHA SMS 1 SE.xlsx    -> Archivo Excel fuente (3 hojas: SMS-SUMMER 27, TOP MAMA OWL, WINTER 26).
 seguimiento.db         -> Base SQLite (se crea con los datos importados).
 iniciar_panel.bat      -> Launcher de red para Windows.
 requirements.txt       -> Dependencias.
@@ -208,6 +208,20 @@ Funciones principales:
   Campos por fila: style, po, name, tela, color, pedido[], prog[], pedido_total,
       prog_total, status, ingreso, obs.
 
+FORMATO WINTER (hojas con canales/destinos de venta, SIN tallas):
+  - Se detecta por la presencia de 'Tot Ped' + 'Tot Prg' + columnas de destino.
+  - En estas hojas el 'Style' + 'Color Cuerpo' se repite en VARIAS filas, una por
+    DESTINO (p.ej. Int Wholesale, Pathmaker, Biskuit, Suhyang, Pathmaker Monoshop,
+    LHD, Unicom, Dom Wholesale, Ecommerce).
+  - La VARIANTE real es Style + Color + DESTINO. Cada destino es una variante.
+  - Implementación (_extraer_winter):
+      * La columna 'color' se muestra como 'Color — Destino' para diferenciar la PK.
+      * pedido_total   = cantidad del destino en su columna.
+      * prog_total     = reparto PROPORCIONAL al pedido (TotPrg_fila * ped/dest / TotPed_fila),
+        porque NO existe programado desglosado por destino.
+      * pedido[]/prog[] (14 tallas) van en 0 (no aplican).
+  - Ejemplo: hoja 'STATUS-WINTER 26 DROP1 misha' → 37 estilos, 441 variantes.
+
 --------------------------------------------------------------------------------
 10. PERSISTENCIA (db.py)
 --------------------------------------------------------------------------------
@@ -284,10 +298,11 @@ CASOS EDGE MANEJADOS:
   - Hoja sin filas válidas → error al importar, no se inserta nada para esa hoja.
   - Sin datos → selector vacío, muestra info.
 
-NOTA: El Excel 'MISHA SMS 1 SE.xlsx' actualmente tiene UNA sola hoja
-('STATUS SMS-SUMMER 27'), por lo que en la práctica hoy hay un solo proyecto.
-La infraestructura multi-proyecto ya está lista para cuando se usen archivos
-con varias hojas.
+NOTA: El Excel 'MISHA SMS 1 SE.xlsx' actualmente tiene 3 hojas:
+  - STATUS SMS-SUMMER 27      (76 estilos / 175 variantes, formato tallas)
+  - STATUS TOP MAMA OWL       (13 estilos / 25 variantes, formato tallas)
+  - STATUS-WINTER 26 DROP1 misha (37 estilos / 441 variantes, formato WINTER/destino)
+Cada hoja es un proyecto independiente y conviven en la DB sin conflictos.
 
 --------------------------------------------------------------------------------
 15. OTROS PENDIENTES

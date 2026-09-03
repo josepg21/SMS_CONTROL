@@ -534,9 +534,37 @@ def inyectar_css():
 
         /* Markdown de código del módulo: fuente legible */
         [data-testid="stMarkdownContainer"] h5 { font-size: 1.05rem !important; }
+
+        /* Selectbox en táctil: el input interno es readonly para que NO abra el
+           teclado automáticamente. Se conserva el dropdown (clic abre la lista). */
+        div[data-testid="stVerticalBlock"] [data-baseweb="select"] input,
+        [data-testid="stSelectbox"] input,
+        [data-baseweb="select"] input {
+            -webkit-user-select: none !important;
+            user-select: none !important;
+            pointer-events: none !important;
+            caret-color: transparent !important;
+        }
+        div[data-testid="stVerticalBlock"] [data-baseweb="select"] > div,
+        [data-baseweb="select"] > div {
+            cursor: pointer !important;
+        }
     }
     /* Móvil (< 768px): apilar y compactar */
     @media (max-width: 767.98px) {
+        /* Selectbox en táctil: input readonly para que no abra el teclado */
+        div[data-testid="stVerticalBlock"] [data-baseweb="select"] input,
+        [data-testid="stSelectbox"] input,
+        [data-baseweb="select"] input {
+            -webkit-user-select: none !important;
+            user-select: none !important;
+            pointer-events: none !important;
+            caret-color: transparent !important;
+        }
+        div[data-testid="stVerticalBlock"] [data-baseweb="select"] > div,
+        [data-baseweb="select"] > div {
+            cursor: pointer !important;
+        }
         .block-container { max-width: 100% !important; width: 100% !important;
                            padding: 3.5rem 1rem 1.5rem !important; }
         h1 { font-size: 1.5rem !important; }
@@ -758,7 +786,7 @@ def render_dashboard(hoja=None):
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 
-def render_modulo(modo, hoja):
+def render_modulo(modo, hoja, hojas_disponibles):
     """Módulo de trabajo por estado: 'costura' -> EN COSTURA, 'acabados' -> EN ACABADOS.
 
     Lista todos los códigos (styles) con sus colores, con buscador.
@@ -768,13 +796,18 @@ def render_modulo(modo, hoja):
     nombre = 'Costura' if modo == 'costura' else 'Acabados'
 
     import pandas as pd
-    datos_db = db.obtener_todos(hoja=hoja)
-    if not datos_db:
-        st.info('Primero importa un Excel en la pestaña **Importar**.')
-        return
 
     st.header(f'Módulo {nombre}')
     st.caption(f'Al guardar, las prendas seleccionadas pasarán a estado **{estado_destino}**.')
+    st.write('Elige el proyecto sobre el que quieres trabajar:')
+    # Selector propio de proyecto (independiente para cada módulo)
+    idx = hojas_disponibles.index(hoja) if hoja in hojas_disponibles else 0
+    hoja = st.selectbox('Proyecto', hojas_disponibles, index=idx, key=f'mod_hoja_{modo}')
+
+    datos_db = db.obtener_todos(hoja=hoja)
+    if not datos_db:
+        st.info(f'El proyecto **{hoja}** no tiene datos. Impórtalo en la pestaña **Importar**.')
+        return
 
     # Buscador
     col_b1, col_b2 = st.columns([3, 1])
@@ -1059,7 +1092,11 @@ with tab_costura:
         st.info('Primero importa un Excel en la pestaña **Importar**.')
     else:
         cur_hoja = hoja_actual()
-        render_modulo('costura', cur_hoja)
+        hojas_disp = db.obtener_hojas_disponibles()
+        if cur_hoja is None or not hojas_disp:
+            st.info('No hay proyectos cargados. Importa un Excel en la pestaña **Importar**.')
+        else:
+            render_modulo('costura', cur_hoja, hojas_disp)
 
 # ============================================================
 # TAB MÓDULO ACABADOS
@@ -1069,4 +1106,8 @@ with tab_acabados:
         st.info('Primero importa un Excel en la pestaña **Importar**.')
     else:
         cur_hoja = hoja_actual()
-        render_modulo('acabados', cur_hoja)
+        hojas_disp = db.obtener_hojas_disponibles()
+        if cur_hoja is None or not hojas_disp:
+            st.info('No hay proyectos cargados. Importa un Excel en la pestaña **Importar**.')
+        else:
+            render_modulo('acabados', cur_hoja, hojas_disp)
