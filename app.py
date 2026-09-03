@@ -590,14 +590,12 @@ def fmt_fecha(f):
         return ''
 
 
-def titulo_dashboard(hoja=None):
+def titulo_dashboard():
     """Devuelve el título del dashboard con cliente y PO, si están disponibles."""
     base = 'Dashboard de avance'
-    datos_db = db.obtener_todos(hoja=hoja)
+    datos_db = db.obtener_todos()
     po = next((d.get('po') for d in datos_db if d.get('po')), None)
     if not po:
-        if hoja:
-            return f'{base} · {hoja}'
         return base
     # El cliente se deriva del prefijo del PO (ej. 'SMS' en 'SMS-01432')
     prefijo = str(po).split('-')[0].strip()
@@ -609,20 +607,6 @@ if 'importado' not in st.session_state:
     st.session_state.importado = db.existe_datos()
 if 'swal' not in st.session_state:
     st.session_state.swal = ''
-if 'hoja_actual' not in st.session_state:
-    hojas = db.obtener_hojas_disponibles()
-    st.session_state.hoja_actual = hojas[0] if hojas else None
-
-
-def hoja_actual():
-    """Devuelve la hoja seleccionada actualmente (o None si no hay datos)."""
-    hojas = db.obtener_hojas_disponibles()
-    if not hojas:
-        st.session_state.hoja_actual = None
-        return None
-    if st.session_state.hoja_actual not in hojas:
-        st.session_state.hoja_actual = hojas[0]
-    return st.session_state.hoja_actual
 
 
 def toast(msg):
@@ -659,13 +643,13 @@ else:
 
 
 @st.fragment(run_every=10)
-def render_dashboard(hoja=None):
+def render_dashboard():
     """Renderiza el contenido del dashboard y se auto-refresca cada 10 segundos."""
     from collections import Counter
     import plotly.graph_objects as go
     import pandas as pd
 
-    datos_db = db.obtener_todos(hoja=hoja)
+    datos_db = db.obtener_todos()
     c_est = Counter(d['status'] or '(sin estado)' for d in datos_db)
     tp = sum(d['total_pedido'] or 0 for d in datos_db)
     tg = sum(d['total_prog'] or 0 for d in datos_db)
@@ -758,7 +742,7 @@ def render_dashboard(hoja=None):
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 
-def render_modulo(modo, hoja):
+def render_modulo(modo):
     """Módulo de trabajo por estado: 'costura' -> EN COSTURA, 'acabados' -> EN ACABADOS.
 
     Lista todos los códigos (styles) con sus colores, con buscador.
@@ -768,7 +752,7 @@ def render_modulo(modo, hoja):
     nombre = 'Costura' if modo == 'costura' else 'Acabados'
 
     import pandas as pd
-    datos_db = db.obtener_todos(hoja=hoja)
+    datos_db = db.obtener_todos()
     if not datos_db:
         st.info('Primero importa un Excel en la pestaña **Importar**.')
         return
@@ -817,7 +801,7 @@ def render_modulo(modo, hoja):
         else:
             for k in elegidas:
                 d = claves[k]
-                db.actualizar_seguimiento(hoja, d['style'], d['color'], status=estado_destino)
+                db.actualizar_seguimiento(d['style'], d['color'], status=estado_destino)
             st.session_state.swal = (f'Actualizadas {len(elegidas)} prendas a {estado_destino}.')
             st.rerun()
 
@@ -834,17 +818,12 @@ def render_modulo(modo, hoja):
 
 # --- Modo solo lectura: mostrar solo el dashboard y detener ---
 if SOLO:
-    hojas = db.obtener_hojas_disponibles()
-    if not hojas:
+    if not st.session_state.importado:
         st.info('Sin datos para mostrar.')
-        st.stop()
-    # Selector de proyecto (con soporte de ?solo=1&hoja=...)
-    q_hoja = st.query_params.get('hoja', None)
-    idx = hojas.index(q_hoja) if q_hoja in hojas else 0
-    sel = st.selectbox('Proyecto', hojas, index=idx, key='solo_hoja')
-    st.header(titulo_dashboard(sel))
-    st.caption('Se actualiza automaticamente cada 10 segundos')
-    render_dashboard(sel)
+    else:
+        st.header(titulo_dashboard())
+        st.caption('Se actualiza automaticamente cada 10 segundos')
+        render_dashboard()
     st.stop()
 
 # ============================================================
@@ -864,34 +843,17 @@ with tab_import:
 
         try:
             hojas = datos.obtener_hojas(temp_path)
-            st.info(f'El archivo contiene {len(hojas)} hojas.')
-            st.markdown('##### Elige qué hojas (proyectos) quieres importar')
-            elegidas = []
-            for h in hojas:
-                if st.checkbox(h, key=f'hoja_import_{h}'):
-                    elegidas.append(h)
-            if st.button('Importar datos seleccionados', type='primary'):
-                if not elegidas:
-                    st.warning('No seleccionaste ninguna hoja.')
+            st.info(f'El archivo contiene las hojas: {", ".join(hojas)}')
+            hoja = st.selectbox('¿Qué hoja quieres importar?', hojas)
+            if st.button('Importar datos', type='primary'):
+                filas = datos.extractar_hoja(temp_path, hoja)
+                if not filas:
+                    st.error('No se encontraron filas válidas en la hoja seleccionada.')
                 else:
-                    total_filas = 0
-                    total_estilos = 0
-                    for h in elegidas:
-                        filas = datos.extractar_hoja(temp_path, h)
-                        if not filas:
-                            st.error(f'No se encontraron filas válidas en la hoja "{h}". No se importó.')
-                            continue
-                        db.reemplazar_datos(h, filas)
-                        total_filas += len(filas)
-                        total_estilos += len({f['style'] for f in filas})
-                    if total_filas:
-                        st.session_state.importado = True
-                        # Actualizar la hoja actual al primero importado, si no hay una activa
-                        if st.session_state.hoja_actual not in db.obtener_hojas_disponibles():
-                            st.session_state.hoja_actual = elegidas[0]
-                        st.session_state.swal = (f'Importadas {total_filas} variantes de '
-                                                 f'{total_estilos} estilos en {len(elegidas)} hojas.')
-                        st.rerun()
+                    db.reemplazar_datos(filas)
+                    st.session_state.importado = True
+                    st.session_state.swal = f'Importados {len(filas)} variantes de {len(set(f["style"] for f in filas))} estilos.'
+                    st.rerun()
         except Exception as e:
             st.error(f'No se pudo leer el archivo: {e}')
         finally:
@@ -903,7 +865,7 @@ with tab_import:
 
     if st.session_state.importado:
         st.divider()
-        st.warning('Reimportar una hoja reemplaza solo los datos de esa hoja/proyecto.',
+        st.warning('Importar reemplaza todos los datos de seguimiento actuales.',
                    icon=None)
 
 # ============================================================
@@ -913,20 +875,8 @@ with tab_seg:
     if not st.session_state.importado:
         st.info('Primero importa un Excel en la pestaña **Importar**.')
     else:
-        cur_hoja = hoja_actual()
-        hojas_disp = db.obtener_hojas_disponibles()
-        if cur_hoja is None:
-            st.info('No hay proyectos cargados. Importa un Excel en la pestaña **Importar**.')
-        else:
-            col_proy = st.columns(1)[0]
-            cur_hoja = col_proy.selectbox('Proyecto', hojas_disp,
-                                          index=hojas_disp.index(cur_hoja)
-                                          if cur_hoja in hojas_disp else 0,
-                                          key='seg_hoja')
-            st.session_state.hoja_actual = cur_hoja
-
-            datos_db = db.obtener_todos(hoja=cur_hoja)
-            st.header('Seguimiento y edición')
+        datos_db = db.obtener_todos()
+        st.header('Seguimiento y edición')
 
         # Filtros
         col_f1, col_f2, col_f3 = st.columns(3)
@@ -991,7 +941,7 @@ with tab_seg:
                 guardar = st.form_submit_button('Guardar cambios', type='primary')
 
             if guardar:
-                db.actualizar_seguimiento(cur_hoja, act['style'], act['color'], status=nuevo_estado,
+                db.actualizar_seguimiento(act['style'], act['color'], status=nuevo_estado,
                                           observaciones=nuevas_obs)
                 toast(f'Guardado: {act["style"]} — {act["color"]} → {nuevo_estado}')
                 st.rerun()
@@ -1003,19 +953,9 @@ with tab_dash:
     if not st.session_state.importado:
         st.info('Primero importa un Excel en la pestaña **Importar**.')
     else:
-        cur_hoja = hoja_actual()
-        hojas_disp = db.obtener_hojas_disponibles()
-        if cur_hoja is None:
-            st.info('No hay proyectos cargados.')
-        else:
-            cur_hoja = st.selectbox('Proyecto', hojas_disp,
-                                    index=hojas_disp.index(cur_hoja)
-                                    if cur_hoja in hojas_disp else 0,
-                                    key='dash_hoja')
-            st.session_state.hoja_actual = cur_hoja
-            st.header(titulo_dashboard(cur_hoja))
-            st.caption('Se actualiza automáticamente cada 10 segundos')
-            render_dashboard(cur_hoja)
+        st.header(titulo_dashboard())
+        st.caption('Se actualiza automáticamente cada 10 segundos')
+        render_dashboard()
 
 
 # ============================================================
@@ -1025,31 +965,21 @@ with tab_export:
     if not st.session_state.importado:
         st.info('Primero importa un Excel en la pestaña **Importar**.')
     else:
-        cur_hoja = hoja_actual()
-        hojas_disp = db.obtener_hojas_disponibles()
-        if cur_hoja is None:
-            st.info('No hay proyectos cargados.')
-        else:
-            cur_hoja = st.selectbox('Proyecto', hojas_disp,
-                                    index=hojas_disp.index(cur_hoja)
-                                    if cur_hoja in hojas_disp else 0,
-                                    key='export_hoja')
-            st.session_state.hoja_actual = cur_hoja
-            st.header('Exportar reporte')
-            st.write('Genera un reporte del avance actual (con estados y observaciones ya editados).')
+        st.header('Exportar reporte')
+        st.write('Genera un reporte del avance actual (con estados y observaciones ya editados).')
 
-            cxl, cpdf = st.columns(2)
-            if cxl.button('Exportar Excel', use_container_width=True):
-                datos_db = db.obtener_todos(hoja=cur_hoja)
-                b = reporte.exportar_excel(datos_db)
-                st.download_button('Descargar Excel', data=b, file_name=f'seguimiento_{cur_hoja}_{datetime.date.today()}.xlsx',
-                                   mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                   use_container_width=True)
-            if cpdf.button('Exportar PDF', use_container_width=True):
-                datos_db = db.obtener_todos(hoja=cur_hoja)
-                b = reporte.exportar_pdf(datos_db)
-                st.download_button('Descargar PDF', data=b, file_name=f'seguimiento_{cur_hoja}_{datetime.date.today()}.pdf',
-                                   mime='application/pdf', use_container_width=True)
+        cxl, cpdf = st.columns(2)
+        if cxl.button('Exportar Excel', use_container_width=True):
+            datos_db = db.obtener_todos()
+            b = reporte.exportar_excel(datos_db)
+            st.download_button('Descargar Excel', data=b, file_name=f'seguimiento_sms_{datetime.date.today()}.xlsx',
+                               mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                               use_container_width=True)
+        if cpdf.button('Exportar PDF', use_container_width=True):
+            datos_db = db.obtener_todos()
+            b = reporte.exportar_pdf(datos_db)
+            st.download_button('Descargar PDF', data=b, file_name=f'seguimiento_sms_{datetime.date.today()}.pdf',
+                               mime='application/pdf', use_container_width=True)
 
 # ============================================================
 # TAB MÓDULO COSTURA
@@ -1058,8 +988,7 @@ with tab_costura:
     if not st.session_state.importado:
         st.info('Primero importa un Excel en la pestaña **Importar**.')
     else:
-        cur_hoja = hoja_actual()
-        render_modulo('costura', cur_hoja)
+        render_modulo('costura')
 
 # ============================================================
 # TAB MÓDULO ACABADOS
@@ -1068,5 +997,4 @@ with tab_acabados:
     if not st.session_state.importado:
         st.info('Primero importa un Excel en la pestaña **Importar**.')
     else:
-        cur_hoja = hoja_actual()
-        render_modulo('acabados', cur_hoja)
+        render_modulo('acabados')

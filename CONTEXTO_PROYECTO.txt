@@ -21,12 +21,10 @@ Tecnología: Streamlit (Python). Persistencia: SQLite. Despliegue: red local LAN
 
 DATOS DE NEGOCIO:
   - El "Style" es el código de la prenda, pero NO es único: se repite una vez por
-    cada "Color Cuerpo". La clave real de cada registro es HOJA + STYLE + COLOR.
+    cada "Color Cuerpo". La clave real de cada registro es STYLE + COLOR.
   - El PO actual es "SMS-01432". El prefijo "SMS" indica el cliente/tipo:
       SMS = Muestra de Venta. (No es PRODUCCION en este caso).
   - Datos: 76 estilos, 175 variantes, 54 estilos multi-color, PO único.
-  - MULTI-HOJA: Cada hoja del Excel es un PROYECTO independiente (ej. STATUS
-    SMS-SUMMER 27, WINTER, PEFIT...). Pueden coexistir varios proyectos en la DB.
 
 --------------------------------------------------------------------------------
 2. ESTRUCTURA DE ARCHIVOS
@@ -212,22 +210,18 @@ Funciones principales:
 10. PERSISTENCIA (db.py)
 --------------------------------------------------------------------------------
 Base: seguimiento.db (SQLite). Tabla: prendas.
-PK: id = f'{hoja}@@{style}@@{color}'.
-Campos: hoja, id, style, po, name, tela, color, tallas_pedido (JSON), total_pedido,
+Clave primaria: id = f'{style}@@{color}'.
+Campos: id, style, po, name, tela, color, tallas_pedido (JSON), total_pedido,
         tallas_prog (JSON), total_prog, status, ingreso, observaciones, fecha_importacion.
 
 Funciones:
-  init_db()                    -> crea tabla si no existe + MIGRACIÓN automática
-                                  (si la DB vieja no tiene columna 'hoja', se dropea
-                                  y recrea con el schema nuevo).
-  reemplazar_datos(hoja, filas)-> borra SOLO esa hoja y reinserta (no toca otras).
-  actualizar_seguimiento(hoja, style, color, status=None, observaciones=None,
+  init_db()                    -> crea tabla si no existe.
+  reemplazar_datos(filas)      -> borra todo y reinserta (usado al importar).
+  actualizar_seguimiento(style, color, status=None, observaciones=None,
                           total_prog=None, tallas_prog=None) -> update parcial.
-  obtener_todos(hoja=None)     -> todas las filas, o solo las de una hoja.
-  obtener_hojas_disponibles()  -> lista de hojas (proyectos) distintas en la DB.
-  obtener_por_id(hoja, style, color) -> una variante.
-  existe_datos(hoja=None)      -> si hay datos (de una hoja o de cualquiera).
-  conteo_por_estado(hoja=None) -> dict de conteos por estado (filtrado por hoja opcional).
+  obtener_todos()              -> todas las filas (con pedido[]/prog[] deserializados).
+  obtener_por_id(style, color) -> una variante.
+  conteo_por_estado()          -> dict de conteos por estado.
 
 --------------------------------------------------------------------------------
 11. REPORTES (reporte.py)
@@ -261,33 +255,58 @@ de 76 estilos). A la(s) prenda(s) usadas en pruebas de Costura se les restauró 
 estado original (B3027U27 / 'Foxglove Scallops' quedó en 'TELA X ING 3-SET').
 
 --------------------------------------------------------------------------------
-14. MULTI-HOJA / MULTI-PROYECTO (IMPLEMENTADO)
+14. CAMBIO PLANIFICADO: MULTI-HOJA / MULTI-PROYECTO (Pendiente de implementar)
 --------------------------------------------------------------------------------
-OBJETIVO LOGRADO: Cada hoja del Excel = un proyecto independiente (ej. STATUS
-SMS-SUMMER 27, WINTER, PEFIT...). Se pueden importar varias hojas y el dashboard
-tiene un selector para ver una u otra.
+OBJETIVO: Cada hoja del Excel = un proyecto independiente (ej. SMS-01432, WINTER).
+Se pueden importar varias hojas y el dashboard tiene un selector para ver una u otra.
 
-FUNCIONAMIENTO ACTUAL:
-  - Pestaña Importar: elige por CHECKBOXES qué hojas importar. Botón 'Importar
-    datos seleccionados' importa solo las marcadas, cada una como proyecto aparte.
-  - Selector 'Proyecto': aparece en el Dashboard, Seguimiento, Exportar y en el
-    modo solo lectura. Sincronizan st.session_state.hoja_actual.
-  - Cada pestaña filtra por la hoja seleccionada (db.obtener_todos(hoja=...)).
-  - Costura/Acabados operan sobre la hoja activa; al guardar pasan la hoja a
-    db.actualizar_seguimiento(hoja, ...).
-  - Re-importar una hoja borra SOLO esa hoja, preserva las demás.
-  - Modo solo lectura (?solo=1): selectbox de proyecto + dashboard. Soporta
-    ?solo=1&hoja=NOMBRE.
+DECISIONES DEL USUARIO:
+  - Importación: Reemplaza todo (pero por hoja, no global).
+  - Filtro de hojas: Elegir una por una con checkboxes.
+  - Selector de proyecto: Dentro del Dashboard (selectbox).
+  - Modo solo lectura (?solo=1): Selector + dashboard.
 
-CASOS EDGE MANEJADOS:
-  - DB vieja sin columna 'hoja' → migración automática (se dropea y recrea).
-  - Hoja sin filas válidas → error al importar, no se inserta nada para esa hoja.
-  - Sin datos → selector vacío, muestra info.
+PLAN DE IMPLEMENTACIÓN:
 
-NOTA: El Excel 'MISHA SMS 1 SE.xlsx' actualmente tiene UNA sola hoja
-('STATUS SMS-SUMMER 27'), por lo que en la práctica hoy hay un solo proyecto.
-La infraestructura multi-proyecto ya está lista para cuando se usen archivos
-con varias hojas.
+  Fase 1: db.py — Schema y capa de datos
+    - Schema: Agregar columna 'hoja TEXT NOT NULL'. PK nueva: hoja@@style@@color
+    - _id(): Cambia a _id(hoja, style, color)
+    - reemplazar_datos(hoja, filas): DELETE WHERE hoja = ? (no borra otras hojas)
+    - obtener_todos(hoja=None): Filtro opcional por hoja
+    - actualizar_seguimiento(hoja, style, color, ...): Usa la PK nueva
+    - Nueva obtener_hojas_disponibles(): Lista hojas distintas en la DB
+    - Migración: Si DB vieja no tiene columna 'hoja', se dropea y recrea
+
+  Fase 2: app.py — Pestaña Importar
+    - Reemplazar selectbox por checkboxes (una por cada hoja del Excel)
+    - Botón "Importar datos seleccionados" importa solo las marcadas
+    - Cada hoja se importa por separado con reemplazar_datos(hoja, filas)
+
+  Fase 3: app.py — Selector de proyecto en Dashboard
+    - Selectbox con las hojas disponibles en la DB
+    - st.session_state.hoja_actual = la hoja seleccionada
+    - Se pasa como filtro a render_dashboard(hoja=...) y titulo_dashboard(hoja=...)
+
+  Fase 4: app.py — Filtro en todas las pestañas
+    - Seguimiento: db.obtener_todos(hoja=actual)
+    - Costura/Acabados: db.obtener_todos(hoja=actual) + hoja en actualizar_seguimiento
+    - Exportar: Exporta solo la hoja seleccionada
+
+  Fase 5: app.py — Modo solo lectura (?solo=1)
+    - Selectbox de proyecto arriba del dashboard
+    - Soporte opcional: ?solo=1&hoja=SMS-01432
+
+  Fase 6: CONTEXTO_PROYECTO.txt — Documentar todo el nuevo flujo
+
+  CASOS EDGE:
+    - DB vieja sin columna 'hoja' → migración automática
+    - Hoja sin filas válidas → error al importar, no se inserta nada
+    - Re-importar una hoja → borra solo esa, preserva las demás
+    - Sin datos → selector vacío, muestra info
+
+  ANTES DE EMPEZAR:
+    - Inicializar git y hacer commit inicial (usuario ya instaló git)
+    - Si algo sale mal → git checkout para retroceder
 
 --------------------------------------------------------------------------------
 15. OTROS PENDIENTES
