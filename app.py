@@ -618,6 +618,14 @@ def fmt_fecha(f):
         return ''
 
 
+def fmt_timestamp(ts):
+    """Formatea un timestamp ISO (ej. 2026-09-04T10:30:00) a 'dd-mm-YYYY HH:MM'."""
+    try:
+        return datetime.datetime.fromisoformat(ts).strftime('%d-%m-%Y %H:%M')
+    except Exception:
+        return ts or ''
+
+
 def titulo_dashboard(hoja=None):
     """Devuelve el título del dashboard con cliente y PO, si están disponibles."""
     base = 'Dashboard de avance'
@@ -802,7 +810,9 @@ def render_dashboard(hoja=None):
         for d in datos_db:
             r = {
                 'Style': d['style'], 'Color': d['color'], 'Prenda': d['name'], 'Tela': d['tela'],
-                'Status': d['status'], 'Ingreso': d['ingreso'] or '', 'Pedido': d['total_pedido'],
+                'Status': d['status'], 'Ingreso': d['ingreso'] or '',
+                'Últ. actualización': fmt_timestamp(d.get('ultima_actualizacion')),
+                'Pedido': d['total_pedido'],
                 'Programado': d['total_prog'], 'Obs': d['observaciones'] or ''
             }
             for i in range(len(TALLAS)):
@@ -813,7 +823,9 @@ def render_dashboard(hoja=None):
     else:
         df = pd.DataFrame([{
             'Style': d['style'], 'Color': d['color'], 'Prenda': d['name'], 'Tela': d['tela'],
-            'Status': d['status'], 'Ingreso': d['ingreso'] or '', 'Pedido': d['total_pedido'],
+            'Status': d['status'], 'Ingreso': d['ingreso'] or '',
+            'Últ. actualización': fmt_timestamp(d.get('ultima_actualizacion')),
+            'Pedido': d['total_pedido'],
             'Programado': d['total_prog'], 'Obs': d['observaciones'] or ''
         } for d in datos_db])
     st.dataframe(df, use_container_width=True, hide_index=True)
@@ -1061,8 +1073,10 @@ with tab_seg:
             act = filtrados[idx]
 
             st.divider()
+            ult_act = fmt_timestamp(act.get('ultima_actualizacion'))
             m1, m2, m3, m4 = st.metric('PO', act['po'] or '—'), st.metric('Prenda', act['name'] or '—'), \
                               st.metric('Tela', act['tela'] or '—'), st.metric('Ingreso Cost', act['ingreso'] or '—')
+            st.caption(f'Última actualización: **{ult_act or "— (no registrada)"}**')
             col_izq, col_der = st.columns(2)
 
             with col_izq:

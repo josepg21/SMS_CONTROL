@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS prendas (
     status TEXT,
     ingreso TEXT,
     observaciones TEXT DEFAULT '',
-    fecha_importacion TEXT
+    fecha_importacion TEXT,
+    ultima_actualizacion TEXT
 );
 """
 
@@ -51,9 +52,10 @@ def _columnas(conn):
 
 
 def _migrar(conn):
-    """Si la DB es vieja (sin columna 'hoja'), se hace un backup y se recrea con el nuevo schema."""
+    """Mantiene la DB al día con el schema actual sin perder datos."""
     cols = _columnas(conn)
     if 'hoja' not in cols:
+        # DB vieja (single-hoja): se hace un backup y se recrea con el nuevo schema.
         db_path = _db_path()
         backup = f'{db_path}.bak_{datetime.datetime.now():%Y%m%d_%H%M%S}'
         try:
@@ -66,6 +68,10 @@ def _migrar(conn):
         conn.commit()
         if backup:
             print(f'[db] Migración: backup de la DB antigua en {backup}')
+        return
+    if 'ultima_actualizacion' not in cols:
+        conn.execute('ALTER TABLE prendas ADD COLUMN ultima_actualizacion TEXT')
+        conn.commit()
 
 
 def init_db():
@@ -103,7 +109,7 @@ def reemplazar_datos(hoja, filas):
 
 def actualizar_seguimiento(hoja, style, color, status=None, observaciones=None,
                            total_prog=None, tallas_prog=None):
-    """Actualiza campos editables de una variante."""
+    """Actualiza campos editables de una variante y registra la fecha de última modificación."""
     conn = _conn()
     sets = []
     params = []
@@ -122,6 +128,8 @@ def actualizar_seguimiento(hoja, style, color, status=None, observaciones=None,
     if not sets:
         conn.close()
         return
+    sets.append('ultima_actualizacion = ?')
+    params.append(datetime.datetime.now().isoformat(timespec='seconds'))
     params.append(_id(hoja, style, color))
     conn.execute(f'UPDATE prendas SET {", ".join(sets)} WHERE id = ?', params)
     conn.commit()

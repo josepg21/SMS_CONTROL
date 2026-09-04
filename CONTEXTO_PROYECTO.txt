@@ -245,7 +245,9 @@ FORMATO WINTER (hojas con canales/destinos de venta, SIN tallas):
 Base: seguimiento.db (SQLite). Tabla: prendas.
 PK: id = f'{hoja}@@{style}@@{color}'.
 Campos: hoja, id, style, po, name, tela, color, tallas_pedido (JSON), total_pedido,
-        tallas_prog (JSON), total_prog, status, ingreso, observaciones, fecha_importacion.
+        tallas_prog (JSON), total_prog, status, ingreso, observaciones, fecha_importacion,
+        ultima_actualizacion (ISO, se setea automaticamente en cada actualización de
+        status/obs/prog; visible en Seguimiento y dashboard).
 
 Funciones:
   init_db()                    -> crea tabla si no existe + MIGRACIÓN automática
