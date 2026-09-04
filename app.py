@@ -986,6 +986,38 @@ with tab_seg:
         filtrados = aplicar_filtros(datos_db)
         st.caption(f'Mostrando {len(filtrados)} de {len(datos_db)} variantes')
 
+        # ===== Acción en lote (selección múltiple) =====
+        if filtrados:
+            with st.expander('Cambiar estado en masa (selección múltiple)', expanded=False):
+                opciones = [f'{d["style"]} — {d["color"]}'
+                            + (f'  [{d["status"]}]' if d['status'] not in (None, '') else '')
+                            for d in filtrados]
+                # Atajos para seleccionar todo o limpiar la selección
+                c_todo, c_limpiar = st.columns(2)
+                if c_todo.button('Seleccionar todos', key='masiva_todo', use_container_width=True):
+                    st.session_state['masiva_opciones'] = opciones
+                    st.rerun()
+                if c_limpiar.button('Limpiar', key='masiva_limpiar', use_container_width=True):
+                    st.session_state['masiva_opciones'] = []
+                    st.rerun()
+                seleccion_masiva = st.multiselect('Selecciona las variantes a cambiar',
+                                                  opciones, key='masiva_opciones')
+                estado_masivo = st.selectbox('Nuevo estado para todas',
+                                             ESTADOS + ['(sin estado)'],
+                                             key='masiva_estado')
+                if st.button(f'Aplicar cambio de estado ({len(seleccion_masiva)} variante(s))',
+                             type='primary', key='masiva_aplicar'):
+                    if not seleccion_masiva:
+                        st.warning('No seleccionaste ninguna variante.')
+                    else:
+                        clave_normal = {o: d for o, d in zip(opciones, filtrados)}
+                        for o in seleccion_masiva:
+                            d = clave_normal[o]
+                            db.actualizar_seguimiento(cur_hoja, d['style'], d['color'], status=estado_masivo)
+                        st.session_state.swal = (f'Actualizadas {len(seleccion_masiva)} variantes '
+                                                 f'a **{estado_masivo}**.')
+                        st.rerun()
+
         if not filtrados:
             st.info('No hay resultados con los filtros actuales.')
         else:
