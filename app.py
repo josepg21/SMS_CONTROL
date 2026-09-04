@@ -692,8 +692,41 @@ def render_dashboard(hoja=None):
     from collections import Counter
     import plotly.graph_objects as go
     import pandas as pd
+    from datetime import datetime, timedelta
 
     datos_db = db.obtener_todos(hoja=hoja)
+
+    # ---- Filtros del dashboard: estado y fecha de ingreso ----
+    col_ff1, col_ff2 = st.columns(2)
+    estados_presentes = sorted({d['status'] or '(sin estado)' for d in datos_db})
+    filtro_estado = col_ff1.selectbox('Filtrar por estado', ['Todos'] + estados_presentes,
+                                      key=f'dash_f_estado_{hoja}')
+    opciones_ingreso = ['Todas', 'Últimos 3 días', 'Últimos 7 días', 'Últimos 15 días',
+                        'Últimos 30 días']
+    filtro_ingreso = col_ff2.selectbox('Filtrar por fecha de ingreso', opciones_ingreso,
+                                       key=f'dash_f_ingreso_{hoja}')
+
+    def _fecha_ingreso(ing):
+        """Convierte 'dd-mm-YYYY' a date; None si no es fecha válida."""
+        try:
+            return datetime.strptime(ing, '%d-%m-%Y').date()
+        except Exception:
+            return None
+
+    sub = datos_db
+    if filtro_estado != 'Todos':
+        sub = [d for d in sub if (d['status'] or '(sin estado)') == filtro_estado]
+    dias = {'Últimos 3 días': 3, 'Últimos 7 días': 7, 'Últimos 15 días': 15, 'Últimos 30 días': 30}
+    if filtro_ingreso in dias:
+        limite = datetime.now().date() - timedelta(days=dias[filtro_ingreso])
+        sub = [d for d in sub if (f := _fecha_ingreso(d['ingreso'])) is not None and f >= limite]
+
+    if not sub:
+        st.info(f'No hay variantes con los filtros seleccionados ({filtro_estado} · {filtro_ingreso}).')
+        st.stop()
+
+    datos_db = sub
+
     c_est = Counter(d['status'] or '(sin estado)' for d in datos_db)
     tp = sum(d['total_pedido'] or 0 for d in datos_db)
     tg = sum(d['total_prog'] or 0 for d in datos_db)
@@ -769,8 +802,8 @@ def render_dashboard(hoja=None):
         for d in datos_db:
             r = {
                 'Style': d['style'], 'Color': d['color'], 'Prenda': d['name'], 'Tela': d['tela'],
-                'Status': d['status'], 'Pedido': d['total_pedido'], 'Programado': d['total_prog'],
-                'Obs': d['observaciones'] or ''
+                'Status': d['status'], 'Ingreso': d['ingreso'] or '', 'Pedido': d['total_pedido'],
+                'Programado': d['total_prog'], 'Obs': d['observaciones'] or ''
             }
             for i in range(len(TALLAS)):
                 r[f'P {TALLAS[i]}'] = d['pedido'][i] if i < len(d['pedido']) else 0
@@ -780,8 +813,8 @@ def render_dashboard(hoja=None):
     else:
         df = pd.DataFrame([{
             'Style': d['style'], 'Color': d['color'], 'Prenda': d['name'], 'Tela': d['tela'],
-            'Status': d['status'], 'Pedido': d['total_pedido'], 'Programado': d['total_prog'],
-            'Obs': d['observaciones'] or ''
+            'Status': d['status'], 'Ingreso': d['ingreso'] or '', 'Pedido': d['total_pedido'],
+            'Programado': d['total_prog'], 'Obs': d['observaciones'] or ''
         } for d in datos_db])
     st.dataframe(df, use_container_width=True, hide_index=True)
 

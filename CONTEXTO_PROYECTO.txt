@@ -97,6 +97,9 @@ CREACIÓN DE TABS (app.py ~línea 494):
 --------------------------------------------------------------------------------
 inyectar_css()        -> Inyecta todo el CSS (glassmorphism oscuro + responsive).
 render_dashboard()    -> @st.fragment(run_every=10). KPIs, gráficos Plotly, tabla resumen por estado.
+                        FILTROS: estado (Todos o uno presente en la hoja) y fecha de ingreso
+                        (Todas / Últimos 3-7-15-30 días). El dashboard completo (KPIs, gráficos,
+                        resumen y detalle) se recalcula sobre el subconjunto filtrado.
 titulo_dashboard()    -> genera 'Dashboard de avance (Muestra de venta · PO SMS-01432)'.
 render_modulo(modo)   -> UI del módulo Costura/Acabados con buscador + checkboxes + guardar.
 fmt_fecha(f)          -> formatea fechas a dd-mm-aaaa.
