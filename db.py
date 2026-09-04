@@ -51,12 +51,21 @@ def _columnas(conn):
 
 
 def _migrar(conn):
-    """Si la DB es vieja (sin columna 'hoja'), se dropea y recrea con el nuevo schema."""
+    """Si la DB es vieja (sin columna 'hoja'), se hace un backup y se recrea con el nuevo schema."""
     cols = _columnas(conn)
     if 'hoja' not in cols:
+        db_path = _db_path()
+        backup = f'{db_path}.bak_{datetime.datetime.now():%Y%m%d_%H%M%S}'
+        try:
+            import shutil
+            shutil.copy2(db_path, backup)
+        except OSError:
+            backup = None
         conn.execute('DROP TABLE IF EXISTS prendas')
         conn.execute(SCHEMA)
         conn.commit()
+        if backup:
+            print(f'[db] Migración: backup de la DB antigua en {backup}')
 
 
 def init_db():

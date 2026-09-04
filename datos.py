@@ -32,8 +32,16 @@ def _norm_text(val):
     return s.strip()
 
 
+def _celda(ws, r, idx, key):
+    """Devuelve el valor crudo de una celda si la columna `key` está detectada, si no None."""
+    c = idx.get(key)
+    if c is None:
+        return None
+    return ws.cell(row=r, column=c + 1).value
+
+
 def _to_num(val):
-    if val is None:
+    if val is None or isinstance(val, bool):
         return 0
     if isinstance(val, (int, float)):
         try:
@@ -74,9 +82,10 @@ def _detect_layout(ws, header_row):
     idx = {}
     # búsqueda de columna Style
     for i, h in enumerate(hr_lower):
+        h_norm = h.replace('.', '').replace(' ', '').replace('-', '')
         if h == 'style':
             idx['style'] = i
-        elif h in ('po', 'op'):
+        elif h_norm in ('po', 'op'):
             idx.setdefault('po', i)
         elif h == 'tendido':
             idx['tendido'] = i
@@ -113,6 +122,13 @@ def extractar_hoja(file_path, sheet_name):
       meta: dict con info (estilos, variantes, totales)
     """
     wb = openpyxl.load_workbook(file_path, data_only=True)
+    try:
+        return _leer_hoja(wb, sheet_name)
+    finally:
+        wb.close()
+
+
+def _leer_hoja(wb, sheet_name):
     ws = wb[sheet_name]
 
     header_row = _find_header_row(ws)
@@ -153,7 +169,7 @@ def extractar_hoja(file_path, sheet_name):
     filas = []
     for r in range(header_row + 1, ws.max_row + 1):
         style = _norm_text(ws.cell(row=r, column=idx['style'] + 1).value)
-        po = _norm_text(idx.get('po') is not None and ws.cell(row=r, column=idx['po'] + 1).value)
+        po = _norm_text(_celda(ws, r, idx, 'po'))
         if not style:
             continue
         fila = {
@@ -216,7 +232,10 @@ def _normalizar_estado(st):
 
 def obtener_hojas(file_path):
     wb = openpyxl.load_workbook(file_path, read_only=True)
-    return wb.sheetnames
+    try:
+        return wb.sheetnames
+    finally:
+        wb.close()
 
 
 def _extraer_winter(ws, header_row, idx):
@@ -252,9 +271,9 @@ def _extraer_winter(ws, header_row, idx):
         status = _normalizar_estado(
             _norm_text(ws.cell(row=r, column=idx['status'] + 1).value if idx.get('status') else None)
             or '(sin estado)')
-        po_base = _norm_text(idx.get('po') is not None and ws.cell(row=r, column=idx['po'] + 1).value)
-        name_base = _norm_text(ws.cell(row=r, column=idx['name'] + 1).value if idx.get('name') else None)
-        tela_base = _norm_text(ws.cell(row=r, column=idx['tela'] + 1).value if idx.get('tela') else None)
+        po_base = _norm_text(_celda(ws, r, idx, 'po'))
+        name_base = _norm_text(_celda(ws, r, idx, 'name'))
+        tela_base = _norm_text(_celda(ws, r, idx, 'tela'))
 
         # Una variante por cada destino con cantidad > 0
         for (ecol, dname) in destinos:

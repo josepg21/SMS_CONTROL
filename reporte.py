@@ -151,6 +151,9 @@ def exportar_pdf(datos):
         order.append('(sin estado)')
     labels = order
     vals = [c_est[k] for k in order]
+    if not vals:
+        vals = [0]
+        labels = ['(sin datos)']
 
     # chart 1: estados
     tmp1 = os.path.join(os.environ.get('TEMP', '/tmp'), 'sms_chart1.png')

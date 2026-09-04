@@ -154,10 +154,13 @@ story.append(Paragraph(
 story.append(Spacer(1, 6))
 
 story.append(Paragraph('Distribución por estado de tela', h2))
+# Generar el texto descriptivo dinámicamente a partir de los conteos reales
+_estado_desc = ', '.join(
+    f'{k} ({n})' for k, n in status_clean.items()
+)
 story.append(Paragraph(
-    'Según el estado de la tela, la mayor cantidad de variantes (71) figura aún como '
-    '<b>TELA X ING 3-SET</b> (por ingresar a procesos), seguida de <b>EN CORTE</b> (61) y '
-    '<b>EN COSTURA</b> (28); mientras que <b>EN LAVANDERÍA</b> suma 12 y <b>EN ACABADOS</b> solo 3. '
+    'Según el estado de la tela, la distribución de variantes es la siguiente: '
+    f'<b>{_estado_desc}</b>. '
     'Esto refleja que la mayor parte del programa se encuentra en las primeras etapas o pendiente de '
     'ingreso a procesos.', body))
 story.append(Spacer(1, 6))
