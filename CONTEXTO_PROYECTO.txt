@@ -82,7 +82,11 @@ CONTEXTO_PROYECTO.txt  -> ESTE ARCHIVO (guía de sesión).
 6. ESTRUCTURA DE LAS PESTAÑAS DE app.py
 --------------------------------------------------------------------------------
 Tab 1  Importar    -> sube Excel, elige hoja, importa. (type='primary')
-Tab 2  Seguimiento -> edita estado y observaciones de cada variante.
+Tab 2  Seguimiento -> edita estado y observaciones de cada variante (una a una) +
+                      ACCIÓN EN MASA (expander): multiselect de variantes filtradas
+                      con atajos 'Seleccionar todos'/'Limpiar' + selectbox de nuevo
+                      estado + botón 'Aplicar cambio de estado (N)'. Muestra
+                      'Última actualización' de la variante seleccionada.
 Tab 3  Dashboard   -> KPIs + gráficos, se auto-refresca.
 Tab 4  Exportar    -> botones Excel y PDF.
 Tab 5  Costura     -> render_modulo('costura')  -> estado EN COSTURA.
