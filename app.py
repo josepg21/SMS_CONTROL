@@ -675,11 +675,16 @@ with st.sidebar:
     st.caption('Panel de control de producción')
 
     # ------ Autenticacion ------
-    autenticado = db.sesion_activa()
+    try:
+        autenticado = db.sesion_activa()
+        email_usr = db.email_actual()
+    except Exception:
+        autenticado = False
+        email_usr = None
 
     if not SOLO:
         if autenticado:
-            st.success(f'Sesión: {db.email_actual()}')
+            st.success(f'Sesión: {email_usr}')
             if st.button('Cerrar sesión'):
                 db.logout()
                 st.rerun()
