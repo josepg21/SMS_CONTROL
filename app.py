@@ -655,36 +655,24 @@ except Exception:
     email_usr = None
 
 # ---------- Rutas (via query param ?vista=...) ----------
-vista = st.query_params.get('vista', None)
+# La vista depende SOLO de la sesion: logueado -> edicion, anonimo -> dashboard.
+# El ?vista= de la URL se sincroniza SIN st.rerun() para evitar los loops de
+# recarga (Streamlit Cloud no siempre conserva el query param embebido) que
+# reiniciaban la app y borraban el progreso del usuario al editar.
+vista_pedida = st.query_params.get('vista', None)
 
-# Ruta principal "/": si hay sesion -> edicion; si no -> dashboard publico
-if vista is None:
-    if autenticado:
-        st.query_params['vista'] = 'edicion'
-        st.rerun()
-    else:
-        st.query_params['vista'] = 'dashboard'
-        st.rerun()
-
-# Ruta "/?vista=dashboard": solo lectura publica
-if vista == 'dashboard':
-    publico = True
-# Ruta "/?vista=edicion": requiere sesion
-elif vista == 'edicion':
-    if not autenticado:
-        # No logueado: forzar a dashboard publico con aviso
-        st.session_state.swal = 'Inicia sesión para editar.'
-        st.query_params['vista'] = 'dashboard'
-        st.rerun()
-    else:
-        publico = False
+if autenticado:
+    publico = False
+    vista_objetivo = 'edicion'
 else:
-    # Cualquier otra cosa -> dashboard
-    st.query_params['vista'] = 'dashboard'
-    st.rerun()
-
-if not autenticado:
     publico = True
+    vista_objetivo = 'dashboard'
+    if vista_pedida == 'edicion':
+        st.session_state.swal = 'Inicia sesión para editar.'
+
+# Solo sincronizar la URL si difiere (sin reintentos en bucle)
+if vista_pedida != vista_objetivo:
+    st.query_params['vista'] = vista_objetivo
 
 TALLAS = datos.TALLAS
 ESTADOS = ['TELA X ING 3-SET', 'EN LAVANDER' + chr(205) + 'A', 'EN CORTE', 'EN COSTURA', 'EN ACABADOS', 'ENCAJADO']
@@ -800,7 +788,7 @@ else:
     tab_import = tab_seg = tab_dash = tab_export = tab_costura = tab_acabados = None
 
 
-@st.fragment(run_every=10)
+@st.fragment(run_every=30)
 def render_dashboard(hoja=None):
     """Renderiza el contenido del dashboard y se auto-refresca cada 10 segundos."""
     from collections import Counter
@@ -1116,9 +1104,9 @@ with tab_seg:
         col_f1, col_f2, col_f3 = st.columns(3)
         estilos_list = sorted({d['style'] for d in datos_db})
         estados_list = sorted({d['status'] for d in datos_db})
-        filtro_style = col_f1.selectbox('Filtrar por estilo', ['Todos'] + estilos_list)
-        filtro_estado = col_f2.selectbox('Filtrar por estado', ['Todos'] + estados_list)
-        buscar = col_f3.text_input('Buscar (estilo o color)', '')
+        filtro_style = col_f1.selectbox('Filtrar por estilo', ['Todos'] + estilos_list, key='seg_f_estilo')
+        filtro_estado = col_f2.selectbox('Filtrar por estado', ['Todos'] + estados_list, key='seg_f_estado')
+        buscar = col_f3.text_input('Buscar (estilo o color)', key='seg_f_buscar')
 
         def aplicar_filtros(ds):
             out = []
@@ -1174,7 +1162,7 @@ with tab_seg:
         else:
             # Selector de variante
             claves = [f'{d["style"]} — {d["color"]}' for d in filtrados]
-            seleccion = st.selectbox('Selecciona una variante para editar', claves)
+            seleccion = st.selectbox('Selecciona una variante para editar', claves, key='seg_variante')
             idx = claves.index(seleccion)
             act = filtrados[idx]
 
