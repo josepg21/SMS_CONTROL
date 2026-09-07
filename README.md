@@ -39,8 +39,22 @@ SUPABASE_KEY = "tu-anon-public-key"
 La app estara disponible en una URL publica como:
 `https://SMS_CONTROL-xxxxx.streamlit.app`
 
+### Autenticacion
+
+- Sin login: cualquiera ve el **dashboard** de solo lectura (via `/` o `/?solo=1`).
+- Con login (email/password): se habilitan las pestanas de **edicion**
+  (Importar, Seguimiento, Exportar, Costura, Acabados).
+- La base de datos solo permite **escritura** a usuarios autenticados.
+
+Para crear un usuario (admin):
+
+1. Ve a tu proyecto Supabase
+2. **Authentication > Users > Add user**
+3. Ingresa email y contrasena (o usa "create new user" con email/password)
+4. Ese usuario ya puede iniciar sesion en la app
+
 ### Notas
 
 - Los datos viven en Supabase: **no se pierden** cuando la app se duerme o se re-despliega.
 - La app se duerme tras ~15 min de inactividad y se despierta automaticamente al visitarla.
-- La anon key esta expuesta en el cliente (es normal en apps sin login); cualquiera con la URL puede leer/escribir datos. Para proteger la app, agrega autenticacion de Supabase (Auth) mas adelante.
+- La anon key permite **leer** (dashboard publico); escribir requiere autenticacion via Supabase Auth.

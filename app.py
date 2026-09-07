@@ -674,6 +674,28 @@ with st.sidebar:
     st.title('Seguimiento SMS')
     st.caption('Panel de control de producción')
 
+    # ------ Autenticacion ------
+    autenticado = db.sesion_activa()
+
+    if not SOLO:
+        if autenticado:
+            st.success(f'Sesión: {db.email_actual()}')
+            if st.button('Cerrar sesión'):
+                db.logout()
+                st.rerun()
+        else:
+            st.markdown('##### Iniciar sesión para editar')
+            with st.form('login_form'):
+                email = st.text_input('Email', key='login_email')
+                password = st.text_input('Contraseña', type='password', key='login_password')
+                if st.form_submit_button('Ingresar', type='primary'):
+                    try:
+                        db.login(email, password)
+                        st.session_state.swal = 'Sesión iniciada.'
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f'No se pudo iniciar sesión: {e}')
+
     st.divider()
 
     if not SOLO:
@@ -691,7 +713,9 @@ with st.sidebar:
         st.toast(st.session_state.swal, icon=None)
         st.session_state.swal = ''
 
-if not SOLO:
+publico = SOLO or not autenticado
+
+if not publico:
     tab_import, tab_seg, tab_dash, tab_export, tab_costura, tab_acabados = st.tabs([
         'Importar', 'Seguimiento', 'Dashboard', 'Exportar', 'Costura', 'Acabados'])
 else:
@@ -914,8 +938,8 @@ def render_modulo(modo, hoja, hojas_disponibles):
             st.dataframe(prev, use_container_width=True, hide_index=True)
 
 
-# --- Modo solo lectura: mostrar solo el dashboard y detener ---
-if SOLO:
+# --- Modo solo lectura / publico: mostrar solo el dashboard y detener ---
+if publico:
     hojas = db.obtener_hojas_disponibles()
     if not hojas:
         st.info('Sin datos para mostrar.')

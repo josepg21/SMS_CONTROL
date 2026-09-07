@@ -25,15 +25,31 @@ CREATE TABLE IF NOT EXISTS public.prendas (
 CREATE INDEX IF NOT EXISTS idx_prendas_hoja ON public.prendas (hoja);
 CREATE INDEX IF NOT EXISTS idx_prendas_status ON public.prendas (status);
 
--- RLS: la app usa la anon key, así que permitimos todo con anon/authenticated.
--- NOTA: esto significa que cualquiera con la URL puede leer/escribir. 
--- La app no tiene sistema de login propio.
+-- RLS: cualquiera puede LEER (dashboard publico), pero solo usuarios
+-- autenticados pueden ESCRIBIR (insertar/actualizar/borrar).
 ALTER TABLE public.prendas ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Permitir todo anon" ON public.prendas
-    FOR ALL
+-- Lectura publica: necesaria para el dashboard de solo lectura.
+CREATE POLICY "Lectura publica" ON public.prendas
+    FOR SELECT
+    USING (true);
+
+-- Escritura solo para usuarios autenticados (por email/password).
+CREATE POLICY "Escritura autenticada" ON public.prendas
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (true);
+
+CREATE POLICY "Actualizacion autenticada" ON public.prendas
+    FOR UPDATE
+    TO authenticated
     USING (true)
     WITH CHECK (true);
+
+CREATE POLICY "Borrado autenticado" ON public.prendas
+    FOR DELETE
+    TO authenticated
+    USING (true);
 
 -- Opcional: forzar timestamps para fechas de importación/actualización
 -- (los deja la app, pero ayuda si alguien inserta directo por el dashboard)

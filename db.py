@@ -174,3 +174,36 @@ def conteo_por_estado(hoja=None):
         s = r['status']
         conteo[s] = conteo.get(s, 0) + 1
     return conteo
+
+
+# ---------- Autenticacion (Supabase Auth) ----------
+
+def login(email, password):
+    """Inicia sesion. Devuelve el email del usuario autenticado."""
+    client = _client()
+    res = client.auth.sign_in_with_password({'email': email, 'password': password})
+    return res.user.email
+
+
+def logout():
+    client = _client()
+    client.auth.sign_out()
+
+
+def sesion_activa():
+    """True si hay una sesion de Supabase activa en este contexto."""
+    try:
+        client = _client()
+        user = client.auth.get_user()
+        return user is not None
+    except Exception:
+        return False
+
+
+def email_actual():
+    try:
+        client = _client()
+        user = client.auth.get_user()
+        return user.user.email if user.user else None
+    except Exception:
+        return None
