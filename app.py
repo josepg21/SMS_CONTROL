@@ -591,11 +591,52 @@ def inyectar_css():
     .st-emotion-cache-13ln4jf, [data-testid="stMainBlockContainer"] {
         max-width: 100% !important;
     }
+
+    /* ===== Campos de texto / contraseña (login) ===== */
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stTextInput"] [data-baseweb="input"],
+    div[data-testid="stTextInput"] > div > div > input,
+    input[aria-label="Email"],
+    input[aria-label="Contraseña"] {
+        background-color: var(--sms-glass) !important;
+        border: 1px solid var(--sms-glass-border) !important;
+        border-radius: 12px !important;
+        color: var(--sms-text) !important;
+        caret-color: var(--sms-white);
+    }
+    div[data-testid="stTextInput"] input:focus,
+    div[data-baseweb="input"]:focus-within {
+        border-color: rgba(255,255,255,0.35) !important;
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.08) !important;
+    }
+    div[data-testid="stTextInput"] label,
+    div[data-testid="stTextInput"] [data-testid="stWidgetLabel"] {
+        color: var(--sms-muted) !important;
+    }
+    div[data-testid="stTextInput"] input::placeholder {
+        color: var(--sms-muted) !important;
+    }
+    div[data-testid="stTextInput"] [data-testid="stCaptionContainer"] p {
+        color: var(--sms-muted) !important;
+    }
+
+    /* ===== Boton de cerrar sesion: diferenciado, tono suave ===== */
+    div.stButton > button[kind="secondary"],
+    button[data-testid="stBaseButton-secondary"] {
+        border: 1px solid var(--sms-glass-border) !important;
+        background: var(--sms-glass) !important;
+        color: var(--sms-text) !important;
+    }
+    div.stButton > button[kind="secondary"]:hover,
+    button[data-testid="stBaseButton-secondary"]:hover {
+        background: rgba(255,255,255,0.12) !important;
+        border-color: rgba(255,255,255,0.35) !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 
-# --- Autenticacion: un usuario con login ve edicion; el resto ve solo dashboard ---
+# --- Autenticacion y rutas ---
 
 try:
     db.init_db()
@@ -604,6 +645,46 @@ except Exception as e:
     st.caption(str(e))
     st.stop()
 inyectar_css()
+
+# Detectar si el visitante esta autenticado
+try:
+    autenticado = db.sesion_activa()
+    email_usr = db.email_actual()
+except Exception:
+    autenticado = False
+    email_usr = None
+
+# ---------- Rutas (via query param ?vista=...) ----------
+vista = st.query_params.get('vista', None)
+
+# Ruta principal "/": si hay sesion -> edicion; si no -> dashboard publico
+if vista is None:
+    if autenticado:
+        st.query_params['vista'] = 'edicion'
+        st.rerun()
+    else:
+        st.query_params['vista'] = 'dashboard'
+        st.rerun()
+
+# Ruta "/?vista=dashboard": solo lectura publica
+if vista == 'dashboard':
+    publico = True
+# Ruta "/?vista=edicion": requiere sesion
+elif vista == 'edicion':
+    if not autenticado:
+        # No logueado: forzar a dashboard publico con aviso
+        st.session_state.swal = 'Inicia sesión para editar.'
+        st.query_params['vista'] = 'dashboard'
+        st.rerun()
+    else:
+        publico = False
+else:
+    # Cualquier otra cosa -> dashboard
+    st.query_params['vista'] = 'dashboard'
+    st.rerun()
+
+if not autenticado:
+    publico = True
 
 TALLAS = datos.TALLAS
 ESTADOS = ['TELA X ING 3-SET', 'EN LAVANDER' + chr(205) + 'A', 'EN CORTE', 'EN COSTURA', 'EN ACABADOS', 'ENCAJADO']
@@ -672,33 +753,24 @@ with st.sidebar:
     st.title('Seguimiento SMS')
     st.caption('Panel de control de producción')
 
-    # ------ Autenticacion ------
-    try:
-        autenticado = db.sesion_activa()
-        email_usr = db.email_actual()
-    except Exception:
-        autenticado = False
-        email_usr = None
-
-    # Un usuario autenticado SIEMPRE ve el modo edicion, aun si la URL tiene ?solo=1
-    publico = not autenticado
-
     if not autenticado:
-        st.markdown('##### Iniciar sesión para editar')
         with st.form('login_form'):
+            st.markdown('##### Iniciar sesión para editar')
             email = st.text_input('Email', key='login_email')
             password = st.text_input('Contraseña', type='password', key='login_password')
-            if st.form_submit_button('Ingresar', type='primary'):
+            if st.form_submit_button('Ingresar', type='primary', use_container_width=True):
                 try:
                     db.login(email, password)
                     st.session_state.swal = 'Sesión iniciada.'
+                    st.query_params['vista'] = 'edicion'
                     st.rerun()
                 except Exception as e:
                     st.error(f'No se pudo iniciar sesión: {e}')
     else:
         st.success(f'Sesión: {email_usr}')
-        if st.button('Cerrar sesión'):
+        if st.button('Cerrar sesión', use_container_width=True, type='secondary'):
             db.logout()
+            st.query_params['vista'] = 'dashboard'
             st.rerun()
 
     st.divider()
@@ -706,7 +778,7 @@ with st.sidebar:
     if not publico:
         if st.session_state.importado:
             st.success('Datos cargados')
-            if st.button('Recargar datos'):
+            if st.button('Recargar datos', use_container_width=True):
                 st.session_state.importado = db.existe_datos()
                 st.rerun()
         else:

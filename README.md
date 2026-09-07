@@ -39,12 +39,22 @@ SUPABASE_KEY = "tu-anon-public-key"
 La app estara disponible en una URL publica como:
 `https://SMS_CONTROL-xxxxx.streamlit.app`
 
-### Autenticacion
+### Autenticacion y rutas
 
-- Sin login: cualquiera ve el **dashboard** de solo lectura (via `/` o `/?solo=1`).
-- Con login (email/password): se habilitan las pestanas de **edicion**
-  (Importar, Seguimiento, Exportar, Costura, Acabados).
-- La base de datos solo permite **escritura** a usuarios autenticados.
+La app gestiona dos rutas (via query param `?vista=...`):
+
+| URL | Comportamiento |
+|-----|----------------|
+| `/` (raiz) | Redirige automaticamente segun la sesion: logueado → `edicion`, sino → `dashboard` |
+| `/?vista=dashboard` | Dashboard publico de solo lectura |
+| `/?vista=edicion` | Zona de edicion. Si no hay sesion, redirige al dashboard |
+
+- **Sin login**: cualquiera ve el dashboard publico de solo lectura.
+- **Con login** (email/password): se habilitan pestanas de **edicion**
+  (Importar, Seguimiento, Dashboard, Exportar, Costura, Acabados).
+- El boton **Ingresar** te redirige a `?vista=edicion`; el boton **Cerrar sesion**
+  te lleva de vuelta a `?vista=dashboard`.
+- La base de datos solo permite **escritura** a usuarios autenticados (RLS).
 
 Para crear un usuario (admin):
 
