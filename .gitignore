@@ -12,3 +12,9 @@ seguimiento.db
 # Reportes generados
 REPORTE*.xlsx
 REPORTE*.pdf
+
+# Archivos de datos fuente (se cargan via UI)
+*.xlsx
+
+# Archivos de utilidad local
+*.bat

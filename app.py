@@ -596,7 +596,6 @@ def inyectar_css():
 
 
 # --- Modo solo lectura (dashboard puro) ---
-import urllib.parse
 SOLO = st.query_params.get('solo', '0') == '1'
 
 
