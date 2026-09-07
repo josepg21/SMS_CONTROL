@@ -16,5 +16,8 @@ REPORTE*.pdf
 # Archivos de datos fuente (se cargan via UI)
 *.xlsx
 
+# Streamlit secrets (credenciales locales)
+.streamlit/secrets.toml
+
 # Archivos de utilidad local
 *.bat

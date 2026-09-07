@@ -599,7 +599,12 @@ def inyectar_css():
 SOLO = st.query_params.get('solo', '0') == '1'
 
 
-db.init_db()
+try:
+    db.init_db()
+except Exception as e:
+    st.error('No se pudo conectar a la base de datos (Supabase).')
+    st.caption(str(e))
+    st.stop()
 inyectar_css()
 
 TALLAS = datos.TALLAS
