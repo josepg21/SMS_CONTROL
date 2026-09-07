@@ -39,7 +39,15 @@ def _credenciales():
 
 def _client():
     url, key = _credenciales()
-    return create_client(url, key)
+    client = create_client(url, key)
+    # Restaurar sesion guardada para que el login persista entre reruns
+    sesion = st.session_state.get('sb_session')
+    if sesion:
+        try:
+            client.auth.set_session(sesion['access_token'], sesion['refresh_token'])
+        except Exception:
+            pass
+    return client
 
 
 def _id(hoja, style, color):
@@ -179,31 +187,31 @@ def conteo_por_estado(hoja=None):
 # ---------- Autenticacion (Supabase Auth) ----------
 
 def login(email, password):
-    """Inicia sesion. Devuelve el email del usuario autenticado."""
+    """Inicia sesion y guarda los tokens en session_state para persistir."""
     client = _client()
     res = client.auth.sign_in_with_password({'email': email, 'password': password})
+    st.session_state['sb_session'] = {
+        'access_token': res.session.access_token,
+        'refresh_token': res.session.refresh_token,
+    }
+    st.session_state['sb_email'] = res.user.email
     return res.user.email
 
 
 def logout():
     client = _client()
-    client.auth.sign_out()
+    st.session_state.pop('sb_session', None)
+    st.session_state.pop('sb_email', None)
+    try:
+        client.auth.sign_out()
+    except Exception:
+        pass
 
 
 def sesion_activa():
-    """True si hay una sesion de Supabase activa en este contexto."""
-    try:
-        client = _client()
-        user = client.auth.get_user()
-        return user is not None
-    except Exception:
-        return False
+    """True si hay una sesion de Supabase activa (guardada en session_state)."""
+    return bool(st.session_state.get('sb_session'))
 
 
 def email_actual():
-    try:
-        client = _client()
-        user = client.auth.get_user()
-        return user.user.email if user.user else None
-    except Exception:
-        return None
+    return st.session_state.get('sb_email')
