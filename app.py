@@ -595,9 +595,7 @@ def inyectar_css():
     """, unsafe_allow_html=True)
 
 
-# --- Modo solo lectura (dashboard puro) ---
-SOLO = st.query_params.get('solo', '0') == '1'
-
+# --- Autenticacion: un usuario con login ve edicion; el resto ve solo dashboard ---
 
 try:
     db.init_db()
@@ -682,28 +680,30 @@ with st.sidebar:
         autenticado = False
         email_usr = None
 
-    if not SOLO:
-        if autenticado:
-            st.success(f'Sesión: {email_usr}')
-            if st.button('Cerrar sesión'):
-                db.logout()
-                st.rerun()
-        else:
-            st.markdown('##### Iniciar sesión para editar')
-            with st.form('login_form'):
-                email = st.text_input('Email', key='login_email')
-                password = st.text_input('Contraseña', type='password', key='login_password')
-                if st.form_submit_button('Ingresar', type='primary'):
-                    try:
-                        db.login(email, password)
-                        st.session_state.swal = 'Sesión iniciada.'
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f'No se pudo iniciar sesión: {e}')
+    # Un usuario autenticado SIEMPRE ve el modo edicion, aun si la URL tiene ?solo=1
+    publico = not autenticado
+
+    if not autenticado:
+        st.markdown('##### Iniciar sesión para editar')
+        with st.form('login_form'):
+            email = st.text_input('Email', key='login_email')
+            password = st.text_input('Contraseña', type='password', key='login_password')
+            if st.form_submit_button('Ingresar', type='primary'):
+                try:
+                    db.login(email, password)
+                    st.session_state.swal = 'Sesión iniciada.'
+                    st.rerun()
+                except Exception as e:
+                    st.error(f'No se pudo iniciar sesión: {e}')
+    else:
+        st.success(f'Sesión: {email_usr}')
+        if st.button('Cerrar sesión'):
+            db.logout()
+            st.rerun()
 
     st.divider()
 
-    if not SOLO:
+    if not publico:
         if st.session_state.importado:
             st.success('Datos cargados')
             if st.button('Recargar datos'):
@@ -718,7 +718,8 @@ with st.sidebar:
         st.toast(st.session_state.swal, icon=None)
         st.session_state.swal = ''
 
-publico = SOLO or not autenticado
+# Un usuario autenticado SIEMPRE ve el modo edicion, aun si la URL tiene ?solo=1
+# (publico ya se definio arriba junto a autenticado)
 
 if not publico:
     tab_import, tab_seg, tab_dash, tab_export, tab_costura, tab_acabados = st.tabs([
